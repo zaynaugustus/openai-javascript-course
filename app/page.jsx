@@ -9,7 +9,7 @@ export default function Home() {
         The Home of Your AI-JS Toolkit
       </h1>
       <div className="flex flex-row justify-start">
-        <div className="flex flex-col items-start min-h-screen text-gray-800 py-4 px-4 sm:px-6 lg:px-8 w-6/12">
+        <div className="flex flex-col justify-center items-start min-h-screen text-gray-800 py-4 px-4 sm:px-6 lg:px-8 w-6/12">
                     <h2
             className={`w-full text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl text-left ${pressStart2P.className}`}
           >
