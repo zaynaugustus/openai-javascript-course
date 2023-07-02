@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     // Enter your code here
     /** STEP ONE: LOAD DOCUMENT */
     const bookPath =
-      "/Users/shawnesquivel/GitHub/yt-script-generator/data/document_loaders/naval-ravikant-book.pdf";
+      "../../data/document_loaders/naval-ravikant-book.pdf";
     const loader = new PDFLoader(bookPath);
 
     const docs = await loader.load();
