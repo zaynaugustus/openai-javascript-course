@@ -1,12 +1,6 @@
 import { OpenAI } from "langchain/llms/openai";
 import SSE from "express-sse";
 
-/**
- *
- * WARNING: THIS IS THE SOLUTION! Please try coding before viewing this.
- *
- */
-
 const sse = new SSE();
 
 export default function handler(req, res) {
@@ -17,7 +11,7 @@ export default function handler(req, res) {
       throw new Error("No input");
     }
     // Initialize model
-    const chat = new OpenAI({
+    const llm = new OpenAI({
       streaming: true,
       callbacks: [
         {
@@ -28,24 +22,16 @@ export default function handler(req, res) {
       ],
     });
 
+    const [creator, thing] = input.split(", ");
     // create the prompt
-    const prompt = `Create me a short rap about my name and city. Make it funny and punny. Name: ${input}`;
-
-    console.log({ prompt });
+    const prompt = `You are ${creator}. Create me a short rap about ${thing}.`;
+    console.log(prompt);
     // call frontend to backend
-    chat
-      .call(prompt)
-      .then(() => {
-        sse.send(null, "end");
-      })
-      .catch((err) => {
-        console.error(err);
-        res
-          .status(500)
-          .json({ error: "An error occurred during the chat call" });
-      });
+    llm.call(prompt).then(() => {
+      sse.send(null, "end");
+    });
 
-    return res.status(200).json({ result: "Streaming complete" });
+    return res.status(200).json({ result: "Streaming complete " });
   } else if (req.method === "GET") {
     sse.init(req, res);
   } else {
