@@ -133,7 +133,7 @@ const PDFLoader = () => {
             <PromptBox
               prompt={prompt}
               handlePromptChange={handlePromptChange}
-              handleSubmit={() => handleSubmitPrompt("/pdf-query")}
+              handleSubmit={() => handleSubmitPrompt("pdf-query")}
               // handleSubmit={() => handleSubmitQuery("/pdfquery-agent")}
               placeHolderText={"How to get rich?"}
               error={error}
