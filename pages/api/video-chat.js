@@ -5,72 +5,42 @@ import { ConversationalRetrievalQAChain } from "langchain/chains";
 import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { CharacterTextSplitter } from "langchain/text_splitter";
+import { OpenAI } from "langchain";
 
-/**
- *
- * WARNING: THIS IS THE SOLUTION! Please try coding before viewing this.
- *
- */
-
-// First, we'll initialize the chain and the chat history so that they can be preserved on multiple calls to the API
+// Global variables
 let chain;
-// Remember, the chat history is where we store each human/chatbot message.
 let chatHistory = [];
 
 // DO THIS SECOND
 const initializeChain = async (initialPrompt, transcript) => {
   try {
-    // Initialize model with GPT-3.5
     const model = new ChatOpenAI({
       temperature: 0.8,
       modelName: "gpt-3.5-turbo",
     });
-    // Create a text splitter, we use a smaller chunk size and chunk overlap since we are working with small sentences
-    const splitter = new CharacterTextSplitter({
-      separator: " ",
-      chunkSize: 7,
-      chunkOverlap: 3,
-    });
 
-    // Using the splitter, we create documents from a bigger document, in this case the YouTube Transcript
-    const docs = await splitter.createDocuments([transcript]);
-
-    console.log(`Loading data ${docs[0]}`);
-
-    // Upload chunks to database as documents
-    // We'll be using HNSWLib for this one.
-    // The nice thing about this one is that we don't need to create any accounts or get any API keys besides our OpenAI key to use this library
-    // So I find that it's nice for doing some quick prototyping.
-    // But the downside is that you don't get the nice dashboard like we had in Pinecone.
     const vectorStore = await HNSWLib.fromDocuments(
       [{ pageContent: transcript }],
       new OpenAIEmbeddings()
     );
 
-    // The ConversationalRetrievalQA chain builds on RetrievalQAChain to provide a chat history component.
-
-    // To create one, you will need a retriever. In the below example, we will create one from a vectorstore, which can be created from embeddings.
-
-    // Remember we can use the loadedVectorStore or the vectorStore, in case for example you want to scale this application up and use the same vector store to store multiple Youtube transcripts.
     chain = ConversationalRetrievalQAChain.fromLLM(
       model,
       vectorStore.asRetriever(),
-      { verbose: true } // Add verbose option here
+      { verbose: true }
     );
 
-    // It requires two inputs: a question and the chat history. It first combines the chat history and the question into a standalone question, then looks up relevant documents from the retriever, and then passes those documents and the question to a question answering chain to return a response.
     const response = await chain.call({
       question: initialPrompt,
       chat_history: chatHistory,
     });
 
-    // Update history
     chatHistory.push({
       role: "assistant",
       content: response.text,
     });
 
-    console.log({ chatHistory });
+    // console.log({ chatHistory });
     return response;
   } catch (error) {
     console.error(error);
@@ -79,58 +49,37 @@ const initializeChain = async (initialPrompt, transcript) => {
 
 export default async function handler(req, res) {
   if (req.method === "POST") {
-    // DO THIS FIRST
-    // First we'll destructure the prompt and firstMsg from the POST request body
-    const { prompt } = req.body;
-    const { firstMsg } = req.body;
+    const { prompt, firstMsg } = req.body;
 
     // Then if it's the first message, we want to initialize the chain, since it doesn't exist yet
     if (firstMsg) {
-      console.log("Initializing chain");
-
       try {
-        // So first of all, we want to give it our human message, which was to ask for a summary of the YouTube URL
-        const initialPrompt = `Give me a summary of the transcript: ${prompt}`;
+        const initialPrompt = `I have provided you transcript of the video in the form of embeddings. Can you please summarize the video for me? `;
 
         chatHistory.push({
           role: "user",
           content: initialPrompt,
         });
 
-        // Here, we'll use a generic YouTube Transcript API to get the transcript of a youtube video
-        // As you can see, the Transcript takes videoId/videoURL has the first argument to the function
         const transcriptResponse = await YoutubeTranscript.fetchTranscript(
           prompt
         );
 
-        // and we'll just add some error handling in case the API fails
         if (!transcriptResponse) {
-          return res.status(400).json({ error: "Failed to get transcript" });
+          return res.status(500).json({ error: "Transcript not found" });
         }
 
-        // Now let's see what that transcriptResponse looks like
+        const transcript = transcriptResponse
+          .map((item) => item.text)
+          .join(" ");
 
-        console.log({ transcriptResponse });
+        // const transcript =
+        //   "Title: Five Key Steps to Building Wealth      Set Clear Goals: Define your financial objectives and create a roadmap to achieve them.      Diversify Income: Explore multiple income streams to increase earning potential and mitigate risks.      Learn and Adapt: Continuously educate yourself about finance, investments, and business to make informed decisions.      Manage Debt: Minimize debt and use credit responsibly to maintain a strong financial foundation.      Network and Collaborate: Surround yourself with successful individuals, build valuable connections, and seek mentorship for guidance and opportunities. Title: Elon Musk: Innovator and Visionary  1. Visionary Entrepreneur: Elon Musk is a visionary entrepreneur who has reshaped industries with his bold ideas and relentless pursuit of innovation.  2. Tesla and SpaceX: Musk's leadership in Tesla and SpaceX has revolutionized electric vehicles and propelled advancements in space exploration.  3. Renewable Energy Advocate: Musk's commitment to renewable energy is evident through his involvement in SolarCity and the development of the Powerwall battery.  4. Hyperloop and Boring Company: Musk's concepts of the Hyperloop and the Boring Company demonstrate his determination to transform transportation and alleviate urban congestion.  5. Inspiring the Future: Elon Musk's groundbreaking initiatives and audacious goals inspire a new generation of entrepreneurs and push the boundaries of human achievement.";
 
-        // We can see that it's a big array of lines. Let's squish it down into one string first to make it easier to use.
+        // console.log({ transcript });
 
-        // We initialize the transcript string
-        let transcript = "";
-
-        // Then the forEach method calls each element in the array, e.g. line = element, and we can do something what that value
-
-        // in this case, we'll add each line of text to the empty string variable to get a single string with the entire transcript
-        transcriptResponse.forEach((line) => {
-          transcript += line.text;
-        });
-
-        // Now, let's create a separate function called initialize chain
-        // We'll pass in the first prompt and the context, in this case the transcript
         const response = await initializeChain(initialPrompt, transcript);
-        console.log("Chain:", chain);
-        console.log(response);
 
-        // And then we'll jsut get the response back and the chatHistory
         return res.status(200).json({ output: response, chatHistory });
       } catch (err) {
         console.error(err);
@@ -139,29 +88,27 @@ export default async function handler(req, res) {
           .json({ error: "An error occurred while fetching transcript" });
       }
 
-      // DO THIS THIRD
+      // do this third!
     } else {
-      // If it's not the first message, we can chat with the bot
-      console.log("Received question");
       try {
-        console.log("Asking:", prompt);
-        console.log("Chain:", chain);
+        console.log("Received question");
 
-        // First we'll add the user message
         chatHistory.push({
           role: "user",
           content: prompt,
         });
-        // Then we'll pass the entire chat history with all the previous messages back
+
         const response = await chain.call({
           question: prompt,
           chat_history: chatHistory,
         });
-        // And we'll add the response back as well
+
         chatHistory.push({
           role: "assistant",
           content: response.text,
         });
+
+        // console.log({ response });
 
         return res.status(200).json({ output: response, chatHistory });
       } catch (error) {
